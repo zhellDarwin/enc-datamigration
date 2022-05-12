@@ -13,19 +13,26 @@ var questions = [
     name: "ConnectionString",
     message: "Enter Your ConnectionString",
   },
+  {
+    type: "input",
+    name: "companyId",
+    message: "Enter Your Organization Id",
+  },
 ];
 
 inquirer.prompt(questions).then((answers) => {
   let key = answers.Key;
   let connectionString = answers.ConnectionString;
-  console.log(key, connectionString);
   count = 0;
   connectToDB(connectionString).then((db) => {
-    getProjects().then((projects) => {
+    console.log("connected to db");
+    getProjects(answers.companyId).then((projects) => {
+      console.log("projects", projects.length);
       projects.forEach((project) => {
         encryptProject(project, key).then((encryptedProject) => {
+          count++;
+          console.log(`Project ${count} Encrypted`);
           updateProject(project._id, encryptedProject).then(() => {
-            count++;
             console.log(`Project ${count} updated`);
             if (count === projects.length) {
               console.log("Encryption Completed");
@@ -41,8 +48,13 @@ const connectToDB = async (connectionString) => {
   return await mongoose.connect(connectionString);
 };
 
-const getProjects = async () => {
-  return await mongoose.connection.db.collection("projects").find({}).toArray();
+const getProjects = async (companyId) => {
+  return await mongoose.connection.db
+    .collection("projects")
+    .find({
+      companyid: companyId,
+    })
+    .toArray();
 };
 
 const updateProject = async (projectId, project) => {
