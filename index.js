@@ -5,8 +5,13 @@ const mongoose = require("mongoose");
 var questions = [
   {
     type: "input",
-    name: "Key",
-    message: "Enter Your Key",
+    name: "OldKey",
+    message: "Enter Your Old Key",
+  },
+  {
+    type: "input",
+    name: "NewKey",
+    message: "Enter Your New Key",
   },
   {
     type: "input",
@@ -21,7 +26,8 @@ var questions = [
 ];
 
 inquirer.prompt(questions).then((answers) => {
-  let key = answers.Key;
+  let oldKey = answers.OldKey;
+  let newKey = answers.NewKey;
   let connectionString = answers.ConnectionString;
   count = 0;
   connectToDB(connectionString).then((db) => {
@@ -29,14 +35,16 @@ inquirer.prompt(questions).then((answers) => {
     getProjects(answers.companyId).then((projects) => {
       console.log("projects", projects.length);
       projects.forEach((project) => {
-        encryptProject(project, key).then((encryptedProject) => {
-          count++;
-          console.log(`Project ${count} Encrypted`);
-          updateProject(project._id, encryptedProject).then(() => {
-            console.log(`Project ${count} updated`);
-            if (count === projects.length) {
-              console.log("Encryption Completed");
-            }
+        decryptProject(project, oldKey).then((project) => {
+          encryptProject(project, newKey).then((encryptedProject) => {
+            count++;
+            console.log(`Project ${count} Encrypted`);
+            updateProject(project._id, encryptedProject).then(() => {
+              console.log(`Project ${count} updated`);
+              if (count === projects.length) {
+                console.log("Encryption Completed");
+              }
+            });
           });
         });
       });
@@ -89,10 +97,46 @@ const encryptProject = async (project, key) => {
   });
   return project;
 };
+const decryptProject = async (project, key) => {
+  project.title = decryptionAES(project.title, key);
+  project.details = decryptionAES(project.details, key);
+  project.group = project?.group?.map((group) => {
+    group.title = decryptionAES(group.title, key);
+    group.details = decryptionAES(group.details, key);
+    if (group.type === "subproject") {
+      group.group = group?.group?.map((task) => {
+        task.title = decryptionAES(task.title, key);
+        task.details = decryptionAES(task.details, key);
+        task.comments = task?.comments?.map((comment) => {
+          comment.comment = decryptionAES(comment.comment, key);
+          return comment;
+        });
+        return task;
+      });
+    } else if (group.type === "task") {
+      group.comments = group?.comments?.map((comment) => {
+        comment.comment = decryptionAES(comment.comment, key);
+        return comment;
+      });
+    }
+    return group;
+  });
+  return project;
+};
 
 const encryptionAES = (msg, key) => {
   if (msg && key) {
     return CryptoJS.AES.encrypt(msg, key).toString();
+  } else {
+    return msg;
+  }
+};
+
+const decryptionAES = (msg, key) => {
+  if (msg && key) {
+    const bytes = CryptoJS.AES.decrypt(msg, key);
+    const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+    return plaintext;
   } else {
     return msg;
   }
