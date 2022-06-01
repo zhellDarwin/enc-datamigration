@@ -1,7 +1,6 @@
 const inquirer = require("inquirer");
 var CryptoJS = require("crypto-js");
 const mongoose = require("mongoose");
-
 var questions = [
   {
     type: "input",
@@ -36,16 +35,23 @@ inquirer.prompt(questions).then((answers) => {
       console.log("projects", projects.length);
       projects.forEach((project) => {
         decryptProject(project, oldKey).then((project) => {
-          encryptProject(project, newKey).then((encryptedProject) => {
-            count++;
-            console.log(`Project ${count} Encrypted`);
-            updateProject(project._id, encryptedProject).then(() => {
-              console.log(`Project ${count} updated`);
-              if (count === projects.length) {
-                console.log("Encryption Completed");
-              }
+          count++;
+          if (!project.invalid) {
+            encryptProject(project, newKey).then((encryptedProject) => {
+              console.log(`Project ${count} Encrypted`);
+              updateProject(project._id, encryptedProject).then(() => {
+                console.log(`Project ${count} updated`);
+                if (count === projects.length) {
+                  console.log("Encryption Completed");
+                }
+              });
             });
-          });
+          } else {
+            console.log(`Project ${count} is invalid`);
+            if (count === projects.length) {
+              console.log("Encryption Completed");
+            }
+          }
         });
       });
     });
@@ -100,6 +106,8 @@ const encryptProject = async (project, key) => {
 const decryptProject = async (project, key) => {
   project.title = decryptionAES(project.title, key);
   project.details = decryptionAES(project.details, key);
+  project.invalid =
+    project.title === "badformat" || project.details === "badformat";
   project.group = project?.group?.map((group) => {
     group.title = decryptionAES(group.title, key);
     group.details = decryptionAES(group.details, key);
@@ -133,11 +141,21 @@ const encryptionAES = (msg, key) => {
 };
 
 const decryptionAES = (msg, key) => {
-  if (msg && key) {
-    const bytes = CryptoJS.AES.decrypt(msg, key);
-    const plaintext = bytes.toString(CryptoJS.enc.Utf8);
-    return plaintext;
-  } else {
-    return msg;
+  try {
+    if (msg && key) {
+      const bytes = CryptoJS.AES.decrypt(msg, key);
+      const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+      return plaintext || "badformat";
+    } else {
+      return msg;
+    }
+  } catch (err) {
+    return "badformat";
   }
 };
+
+// let test = decryptionAES(
+//   "U2FsdGVkX18iIFZHADX4Xl89Hek/y0hDmNRLmu3w===",
+//   "What is your nameq"
+// );
+// console.log(test);
